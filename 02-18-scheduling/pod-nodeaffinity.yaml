@@ -1,0 +1,26 @@
+# Par. 2.18 - Affinità di nodo: obbligatoria (required...) e preferenziale (preferred...)
+kind: Pod
+apiVersion: v1
+metadata:
+  name: tf-mnist-nodeaffinity
+spec:
+  containers:
+  - name: tf-mnist
+    image: registry.k8s.io/pause:3.10
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: hardware
+            operator: In
+            values:
+            - highmem
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        preference:
+          matchExpressions:
+          - key: disktype
+            operator: In
+            values:
+            - ssd

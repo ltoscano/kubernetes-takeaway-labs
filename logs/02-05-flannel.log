@@ -1,0 +1,16 @@
+namespace/kube-flannel created
+serviceaccount/flannel created
+clusterrole.rbac.authorization.k8s.io/flannel created
+clusterrolebinding.rbac.authorization.k8s.io/flannel created
+configmap/kube-flannel-cfg created
+daemonset.apps/kube-flannel-ds created
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 0 of 3 updated pods are available...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 1 of 3 updated pods are available...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 2 of 3 updated pods are available...
+daemon set "kube-flannel-ds" successfully rolled out
+node/takeaway-control-plane condition met
+node/takeaway-worker condition met
+node/takeaway-worker2 condition met
+NAME                       READY   STATUS              RESTARTS   AGE   IP       NODE               NOMINATED NODE   READINESS GATES
+coredns-559f6c778d-rnn8v   0/1     ContainerCreating   0          19s   <none>   takeaway-worker2   <none>           <none>
+coredns-559f6c778d-whlqg   0/1     ContainerCreating   0          19s   <none>   takeaway-worker2   <none>           <none>

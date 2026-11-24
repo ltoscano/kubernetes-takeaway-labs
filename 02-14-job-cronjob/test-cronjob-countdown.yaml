@@ -1,0 +1,22 @@
+# Par. 2.14 - CronJob: lo stesso conto alla rovescia, eseguito ogni minuto
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: test-cronjob-countdown
+spec:
+  schedule: "*/1 * * * *"
+  timeZone: "Europe/Rome"          # facoltativo (GA da Kubernetes 1.27)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: counter
+            image: alpine:3.22
+            command:
+            - "/bin/sh"
+            - "-c"
+            - "for i in 9 8 7 6 5 4 3 2 1 ; do echo $i ; done"
+          restartPolicy: Never

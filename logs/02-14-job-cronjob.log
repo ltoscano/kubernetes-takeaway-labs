@@ -1,0 +1,66 @@
+
+$ kubectl apply -f test-job-countdown.yaml
+job.batch/test-job-countdown created
+
+$ kubectl wait --for=condition=Complete job/test-job-countdown --timeout=180s
+job.batch/test-job-countdown condition met
+
+$ kubectl get jobs
+NAME                 STATUS     COMPLETIONS   DURATION   AGE
+test-job-countdown   Complete   2/2           6s         6s
+
+$ kubectl get pods -l job-name=test-job-countdown
+NAME                       READY   STATUS      RESTARTS   AGE
+test-job-countdown-qc2r4   0/1     Completed   0          3s
+test-job-countdown-qzth4   0/1     Completed   0          6s
+
+$ kubectl logs test-job-countdown-qc2r4 | head -n 3
+9
+8
+7
+
+$ kubectl delete job test-job-countdown
+job.batch "test-job-countdown" deleted from default namespace
+
+$ kubectl apply -f test-cronjob-countdown.yaml
+cronjob.batch/test-cronjob-countdown created
+
+$ kubectl get cronjobs
+NAME                     SCHEDULE      TIMEZONE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+test-cronjob-countdown   */1 * * * *   Europe/Rome   False     0        <none>          0s
+
+$ kubectl get pods -l job-name --watch   (interrotto dopo 150s)
+NAME                                    READY   STATUS    RESTARTS   AGE
+test-cronjob-countdown-29924709-9zxwl   0/1     Pending   0          0s
+test-cronjob-countdown-29924709-9zxwl   0/1     Pending   0          0s
+test-cronjob-countdown-29924709-9zxwl   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924709-9zxwl   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924709-9zxwl   1/1     Running             0          0s
+test-cronjob-countdown-29924709-9zxwl   0/1     Completed           0          1s
+test-cronjob-countdown-29924709-9zxwl   0/1     Completed           0          2s
+test-cronjob-countdown-29924709-9zxwl   0/1     Completed           0          3s
+test-cronjob-countdown-29924710-fcqwt   0/1     Pending             0          0s
+test-cronjob-countdown-29924710-fcqwt   0/1     Pending             0          0s
+test-cronjob-countdown-29924710-fcqwt   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924710-fcqwt   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924710-fcqwt   1/1     Running             0          0s
+test-cronjob-countdown-29924710-fcqwt   0/1     Completed           0          1s
+test-cronjob-countdown-29924710-fcqwt   0/1     Completed           0          2s
+test-cronjob-countdown-29924710-fcqwt   0/1     Completed           0          3s
+test-cronjob-countdown-29924711-lbmlz   0/1     Pending             0          0s
+test-cronjob-countdown-29924711-lbmlz   0/1     Pending             0          0s
+test-cronjob-countdown-29924711-lbmlz   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924711-lbmlz   0/1     ContainerCreating   0          0s
+test-cronjob-countdown-29924711-lbmlz   1/1     Running             0          0s
+test-cronjob-countdown-29924711-lbmlz   0/1     Completed           0          1s
+test-cronjob-countdown-29924711-lbmlz   0/1     Completed           0          2s
+test-cronjob-countdown-29924711-lbmlz   0/1     Completed           0          3s
+
+$ kubectl get jobs
+NAME                              STATUS     COMPLETIONS   DURATION   AGE
+test-cronjob-countdown-29924709   Complete   1/1           3s         2m20s
+test-cronjob-countdown-29924710   Complete   1/1           3s         80s
+test-cronjob-countdown-29924711   Complete   1/1           3s         20s
+
+$ kubectl delete cronjob test-cronjob-countdown
+cronjob.batch "test-cronjob-countdown" deleted from default namespace

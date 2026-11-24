@@ -1,0 +1,75 @@
+
+$ helm version
+version.BuildInfo{Version:"v4.3.2", GitCommit:"8346aaa55e7161f7c547212d0a87f01367976727", GitTreeState:"dirty", GoVersion:"go1.27.4", KubeClientVersion:"v1.37"}
+
+$ helm repo add podinfo https://stefanprodan.github.io/podinfo
+"podinfo" already exists with the same configuration, skipping
+
+$ helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "metrics-server" chart repository
+...Successfully got an update from the "podinfo" chart repository
+...Successfully got an update from the "headlamp" chart repository
+...Successfully got an update from the "haproxytech" chart repository
+...Successfully got an update from the "prometheus-community" chart repository
+Update Complete. ⎈Happy Helming!⎈
+
+$ helm search repo podinfo
+NAME           	CHART VERSION	APP VERSION	DESCRIPTION                      
+podinfo/podinfo	6.17.0       	6.17.0     	Podinfo Helm chart for Kubernetes
+
+$ helm search hub podinfo --max-col-width 60 | head -n 4
+URL                                                 	CHART VERSION	APP VERSION	DESCRIPTION                               
+https://artifacthub.io/packages/helm/podinfo/podinfo	6.17.0       	6.17.0     	Podinfo Helm chart for Kubernetes         
+https://artifacthub.io/packages/helm/flagger/podinfo	6.1.4        	6.1.3      	Flagger canary deployment demo application
+
+$ helm install mypodinfo podinfo/podinfo --wait
+NAME: mypodinfo
+LAST DEPLOYED: Tue Nov 24 02:11:21 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+NOTES:
+1. Get the application URL by running these commands:
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl -n default port-forward deploy/mypodinfo 8080:9898
+
+$ helm list
+NAME     	NAMESPACE	REVISION	UPDATED                             	STATUS  	CHART         	APP VERSION
+mypodinfo	default  	1       	2026-11-24 02:11:21.704651 +0100 CET	deployed	podinfo-6.17.0	6.17.0     
+
+$ kubectl get deployment,service mypodinfo
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/mypodinfo   1/1     1            1           15s
+
+NAME                TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)             AGE
+service/mypodinfo   ClusterIP   10.96.2.159   <none>        9898/TCP,9999/TCP   15s
+
+$ helm upgrade mypodinfo podinfo/podinfo --set replicaCount=2 --wait
+Release "mypodinfo" has been upgraded. Happy Helming!
+NAME: mypodinfo
+LAST DEPLOYED: Tue Nov 24 02:11:36 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 2
+DESCRIPTION: Upgrade complete
+NOTES:
+1. Get the application URL by running these commands:
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl -n default port-forward deploy/mypodinfo 8080:9898
+
+$ helm history mypodinfo
+REVISION	UPDATED                 	STATUS    	CHART         	APP VERSION	DESCRIPTION     
+1       	Tue Nov 24 02:11:21 2026	superseded	podinfo-6.17.0	6.17.0     	Install complete
+2       	Tue Nov 24 02:11:36 2026	deployed  	podinfo-6.17.0	6.17.0     	Upgrade complete
+
+$ helm rollback mypodinfo 1 --wait
+Rollback was a success! Happy Helming!
+
+$ kubectl get deployment mypodinfo
+NAME        READY   UP-TO-DATE   AVAILABLE   AGE
+mypodinfo   1/1     1            1           20s
+
+$ helm uninstall mypodinfo
+release "mypodinfo" uninstalled

@@ -1,0 +1,27 @@
+Creating cluster "takeaway" ...
+ • Ensuring node image (kindest/node:v1.37.0) 🖼️  ...
+ ✓ Ensuring node image (kindest/node:v1.37.0) 🖼️
+ • Preparing nodes 📦 📦 📦   ...
+ ✓ Preparing nodes 📦 📦 📦 
+ • Writing configuration 📜  ...
+ ✓ Writing configuration 📜
+ • Starting control-plane 🕹️  ...
+ ✓ Starting control-plane 🕹️
+ • Installing StorageClass 💾  ...
+ ✓ Installing StorageClass 💾
+ • Joining worker nodes 🚜  ...
+ ✓ Joining worker nodes 🚜
+Set kubectl context to "kind-takeaway"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-takeaway
+
+Not sure what to do next? 😅  Check out https://kind.sigs.k8s.io/docs/user/quick-start/
+>> installo il plug-in CNI bridge v1.10.0 su takeaway-worker2
+>> installo il plug-in CNI bridge v1.10.0 su takeaway-control-plane
+>> installo il plug-in CNI bridge v1.10.0 su takeaway-worker
+NAME                     STATUS     ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION            CONTAINER-RUNTIME
+takeaway-control-plane   NotReady   control-plane   19s   v1.37.0   192.168.32.3   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+takeaway-worker          NotReady   <none>          5s    v1.37.0   192.168.32.2   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+takeaway-worker2         NotReady   <none>          5s    v1.37.0   192.168.32.4   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+Cluster creato. I nodi resteranno NotReady finché non installi il plug-in di rete (02-05-cni/install-flannel.sh).

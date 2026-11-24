@@ -1,0 +1,58 @@
+
+$ helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+"headlamp" already exists with the same configuration, skipping
+
+$ helm repo update headlamp
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "headlamp" chart repository
+Update Complete. ⎈Happy Helming!⎈
+
+$ helm upgrade --install my-headlamp headlamp/headlamp --namespace kube-system --wait
+Release "my-headlamp" does not exist. Installing it now.
+NAME: my-headlamp
+LAST DEPLOYED: Tue Nov 24 02:14:50 2026
+NAMESPACE: kube-system
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace kube-system -l "app.kubernetes.io/name=headlamp,app.kubernetes.io/instance=my-headlamp" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace kube-system $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace kube-system port-forward $POD_NAME 8080:$CONTAINER_PORT
+2. Get the token using
+  kubectl create token my-headlamp --namespace kube-system
+
+$ kubectl get deployment,service my-headlamp --namespace kube-system
+NAME                          READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/my-headlamp   1/1     1            1           7s
+
+NAME                  TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)   AGE
+service/my-headlamp   ClusterIP   10.96.8.184   <none>        80/TCP    7s
+
+$ kubectl apply -f admin-user.yaml -f viewer-user.yaml
+serviceaccount/admin-user created
+clusterrolebinding.rbac.authorization.k8s.io/admin-user created
+serviceaccount/viewer-user created
+clusterrolebinding.rbac.authorization.k8s.io/viewer-user created
+
+$ kubectl create token admin-user --namespace kube-system --duration=1h | cut -c1-40; echo '...'
+eyJhbGciOiJSUzI1NiIsImtpZCI6IkkwZ2Q5NXAz
+...
+
+$ kubectl auth can-i delete pods --all-namespaces --as=system:serviceaccount:kube-system:admin-user
+yes
+
+$ kubectl auth can-i list pods --all-namespaces --as=system:serviceaccount:kube-system:viewer-user
+yes
+
+$ kubectl auth can-i delete pods --all-namespaces --as=system:serviceaccount:kube-system:viewer-user || true
+no
+
+$ kubectl auth can-i get secrets --namespace default --as=system:serviceaccount:kube-system:viewer-user || true
+no
+
+Apri Headlamp con:  kubectl port-forward --namespace kube-system svc/my-headlamp 4466:80   -> http://localhost:4466
+e usa il token di admin-user (kubectl create token admin-user -n kube-system) oppure di viewer-user.

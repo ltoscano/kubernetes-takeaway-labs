@@ -1,0 +1,96 @@
+
+$ kubectl get pods --namespace kube-flannel -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP             NODE                     NOMINATED NODE   READINESS GATES
+kube-flannel-ds-k2869   1/1     Running   0          10s   192.168.32.4   takeaway-worker2         <none>           <none>
+kube-flannel-ds-nbfvx   1/1     Running   0          10s   192.168.32.2   takeaway-worker          <none>           <none>
+kube-flannel-ds-z7bs2   1/1     Running   0          10s   192.168.32.3   takeaway-control-plane   <none>           <none>
+
+$ kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}'; echo
+10.244.0.0/24 10.244.2.0/24 10.244.1.0/24
+
+$ docker exec takeaway-worker ip route
+default via 192.168.32.1 dev eth0 
+10.244.1.0/24 via 10.244.1.0 dev flannel.1 onlink 
+192.168.32.0/20 dev eth0 proto kernel scope link src 192.168.32.2 
+
+$ docker exec takeaway-worker cat /run/flannel/subnet.env
+FLANNEL_NETWORK=10.244.0.0/16
+FLANNEL_SUBNET=10.244.2.1/24
+FLANNEL_MTU=65485
+FLANNEL_IPMASQ=true
+
+$ docker exec takeaway-worker ethtool -i flannel.1 | head -n 2
+driver: vxlan
+version: 0.1
+
+$ docker exec takeaway-worker ip -d link show flannel.1 | grep -o 'vxlan id [0-9]* .*dstport [0-9]*'
+vxlan id 1 local 192.168.32.2 dev eth0 srcport 0 0 dstport 8472
+
+$ docker exec takeaway-worker ss -ulpn | grep 8472
+UNCONN 0      0            0.0.0.0:8472       0.0.0.0:*          
+
+$ docker exec takeaway-worker crictl pods
+POD ID              CREATED             STATE               NAME                    NAMESPACE           ATTEMPT             RUNTIME
+06844e9f8b52c       9 seconds ago       Ready               kube-flannel-ds-nbfvx   kube-flannel        0                   (default)
+f38052df94d3e       14 seconds ago      Ready               kube-proxy-k6rz9        kube-system         0                   (default)
+
+$ docker exec takeaway-worker crictl images | grep -E 'IMAGE|pause'
+IMAGE                                           TAG                  IMAGE ID            SIZE
+registry.k8s.io/pause                           3.10                 afb61768ce381       268kB
+
+$ kubectl get service --all-namespaces
+NAMESPACE     NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  28s
+kube-system   kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   27s
+
+$ kubectl describe service kubernetes
+Name:                     kubernetes
+Namespace:                default
+Labels:                   component=apiserver
+                          provider=kubernetes
+Annotations:              <none>
+Selector:                 <none>
+Type:                     ClusterIP
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.96.0.1
+IPs:                      10.96.0.1
+Port:                     https  443/TCP
+TargetPort:               6443/TCP
+Endpoints:                192.168.32.3:6443
+Session Affinity:         None
+Internal Traffic Policy:  Cluster
+Events:                   <none>
+
+$ kubectl get endpointslices --namespace default
+NAME         ADDRESSTYPE   PORTS   ENDPOINTS      AGE
+kubernetes   IPv4          6443    192.168.32.3   28s
+
+$ kubectl get configmap kube-flannel-cfg -n kube-flannel -o jsonpath='{.data.net-conf\.json}'; echo
+{
+  "Network": "10.244.0.0/16",
+  "EnableNFTables": false,
+  "Backend": {
+    "Type": "vxlan"
+  }
+}
+
+configmap/kube-flannel-cfg configured
+
+$ kubectl rollout restart daemonset/kube-flannel-ds --namespace kube-flannel
+daemonset.apps/kube-flannel-ds restarted
+
+$ kubectl rollout status daemonset/kube-flannel-ds --namespace kube-flannel --timeout=180s
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 0 out of 3 new pods have been updated...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 1 out of 3 new pods have been updated...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 1 out of 3 new pods have been updated...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "kube-flannel-ds" rollout to finish: 2 of 3 updated pods are available...
+daemon set "kube-flannel-ds" successfully rolled out
+
+$ docker exec takeaway-worker ip route
+default via 192.168.32.1 dev eth0 
+10.244.0.0/24 via 192.168.32.3 dev eth0 
+10.244.1.0/24 via 192.168.32.4 dev eth0 
+192.168.32.0/20 dev eth0 proto kernel scope link src 192.168.32.2 

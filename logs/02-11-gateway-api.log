@@ -1,0 +1,75 @@
+
+$ ./install-envoy-gateway.sh
+Release "eg" does not exist. Installing it now.
+Pulled: docker.io/envoyproxy/gateway-helm:v1.10.0
+Digest: sha256:dcb82a14c04b426615a71d97222c7edf9f5ff58b800d241e71ac5784ae6dc7b7
+NAME: eg
+LAST DEPLOYED: Tue Nov 24 02:07:52 2026
+NAMESPACE: envoy-gateway-system
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+**************************************************************************
+*** PLEASE BE PATIENT: Envoy Gateway may take a few minutes to install ***
+**************************************************************************
+
+Envoy Gateway is an open source project for managing Envoy Proxy as a standalone or Kubernetes-based application gateway.
+
+Thank you for installing Envoy Gateway! 🎉
+
+Your release is named: eg. 🎉
+
+Your release is in namespace: envoy-gateway-system. 🎉
+
+To learn more about the release, try:
+
+  $ helm status eg -n envoy-gateway-system
+  $ helm get all eg -n envoy-gateway-system
+
+To have a quickstart of Envoy Gateway, please refer to https://gateway.envoyproxy.io/latest/tasks/quickstart.
+
+To get more details, please visit https://gateway.envoyproxy.io and https://github.com/envoyproxy/gateway.
+deployment.apps/envoy-gateway condition met
+
+$ kubectl apply -f gateway-foo-bar.yml
+gatewayclass.gateway.networking.k8s.io/eg created
+gateway.gateway.networking.k8s.io/foo-bar-gateway created
+httproute.gateway.networking.k8s.io/foo-bar-route created
+
+$ kubectl wait --for=condition=Accepted gateway/foo-bar-gateway --timeout=180s
+gateway.gateway.networking.k8s.io/foo-bar-gateway condition met
+
+$ kubectl wait --for=condition=Available deployment -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=foo-bar-gateway --timeout=180s
+deployment.apps/envoy-default-foo-bar-gateway-10db0ba2 condition met
+
+$ kubectl get gatewayclass,gateway,httproute
+NAME                                        CONTROLLER                                      ACCEPTED   AGE
+gatewayclass.gateway.networking.k8s.io/eg   gateway.envoyproxy.io/gatewayclass-controller   True       12s
+
+NAME                                                CLASS   ADDRESS   PROGRAMMED   AGE
+gateway.gateway.networking.k8s.io/foo-bar-gateway   eg                False        12s
+
+NAME                                                HOSTNAMES     AGE
+httproute.gateway.networking.k8s.io/foo-bar-route   ["foo.bar"]   12s
+
+$ kubectl get gateway foo-bar-gateway -o jsonpath='{range .status.conditions[*]}{.type}={.status} ({.reason}){"\n"}{end}'
+Accepted=True (Accepted)
+Programmed=False (AddressNotAssigned)
+
+$ kubectl get svc -n envoy-gateway-system envoy-default-foo-bar-gateway-10db0ba2
+NAME                                     TYPE           CLUSTER-IP   EXTERNAL-IP   PORT(S)        AGE
+envoy-default-foo-bar-gateway-10db0ba2   LoadBalancer   10.96.8.2    <pending>     80:32685/TCP   12s
+
+$ kubectl exec curl -- sh -c 'curl -s -H "Host: foo.bar" http://10.96.8.2/hello | grep Hostname; curl -s -H "Host: foo.bar" http://10.96.8.2/getdate | tail -n 1'
+Hostname: test-2-deploy-6dcdfdc645-stn49
+Tue Nov 24 01:08:25 UTC 2026
+
+$ kubectl delete -f gateway-foo-bar.yml
+gatewayclass.gateway.networking.k8s.io "eg" deleted
+gateway.gateway.networking.k8s.io "foo-bar-gateway" deleted from default namespace
+httproute.gateway.networking.k8s.io "foo-bar-route" deleted from default namespace
+
+$ helm uninstall eg --namespace envoy-gateway-system
+release "eg" uninstalled

@@ -1,0 +1,38 @@
+# Par. 2.18 - webstore: ogni replica su un nodo diverso (podAntiAffinity)
+# e sempre sullo stesso nodo di una replica della cache (podAffinity)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-server
+spec:
+  selector:
+    matchLabels:
+      app: webstore
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: webstore
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - webstore
+            topologyKey: "kubernetes.io/hostname"
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - cache
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: webstore
+        image: nginx:1.29-alpine

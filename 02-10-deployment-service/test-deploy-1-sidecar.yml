@@ -1,0 +1,38 @@
+# Variante con "sidecar nativo" (GA da Kubernetes 1.33): il writer è dichiarato tra gli
+# initContainers con restartPolicy: Always. Parte PRIMA del container principale, resta in
+# esecuzione per tutta la vita del pod e viene terminato DOPO di esso.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: test-deploy-sidecar
+  name: test-deploy-sidecar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-deploy-sidecar
+  template:
+    metadata:
+      labels:
+        app: test-deploy-sidecar
+    spec:
+      volumes:
+      - name: html
+        emptyDir: {}
+      initContainers:
+      - name: writer
+        image: debian:13
+        restartPolicy: Always
+        command: ["/bin/sh", "-c"]
+        args:
+        - while true; do date >> /html/index.html; sleep 1; done
+        volumeMounts:
+        - name: html
+          mountPath: /html
+      containers:
+      - name: web
+        image: nginx:1.29
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html

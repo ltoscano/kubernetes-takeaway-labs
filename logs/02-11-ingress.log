@@ -1,0 +1,136 @@
+
+$ ./install-haproxy.sh
+"haproxytech" already exists with the same configuration, skipping
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "haproxytech" chart repository
+Update Complete. ⎈Happy Helming!⎈
+Release "haproxy-kubernetes-ingress" does not exist. Installing it now.
+NAME: haproxy-kubernetes-ingress
+LAST DEPLOYED: Tue Nov 24 02:07:16 2026
+NAMESPACE: haproxy-controller
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+HAProxy Kubernetes Ingress Controller has been successfully installed.
+
+Controller image deployed is: "docker.io/haproxytech/kubernetes-ingress:3.4.1".
+Your controller is of a "Deployment" kind. Your controller service is running as a "NodePort" type.
+RBAC authorization is enabled.
+Controller ingress.class is set to "haproxy" so make sure to use same annotation for
+Ingress resource.
+
+Service ports mapped are:
+  - name: admin
+    containerPort: 6060
+    protocol: TCP
+  - name: http
+    containerPort: 8080
+    protocol: TCP
+  - name: https
+    containerPort: 8443
+    protocol: TCP
+  - name: stat
+    containerPort: 1024
+    protocol: TCP
+  - name: quic
+    containerPort: 8443
+    protocol: UDP
+
+Node IP can be found with:
+  $ kubectl --namespace haproxy-controller get nodes -o jsonpath="{.items[0].status.addresses[1].address}"
+
+The following ingress resource routes traffic to pods that match the following:
+  * service name: web
+  * client's Host header: webdemo.com
+  * path begins with /
+
+  ---
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: web-ingress
+    namespace: default
+    annotations:
+      ingress.class: "haproxy"
+  spec:
+    rules:
+    - host: webdemo.com
+      http:
+        paths:
+        - path: /
+          backend:
+            serviceName: web
+            servicePort: 80
+
+In case that you are using multi-ingress controller environment, make sure to use ingress.class annotation and match it
+with helm chart option controller.ingressClass.
+
+For more examples and up to date documentation, please visit:
+  * Helm chart documentation: https://github.com/haproxytech/helm-charts/tree/main/kubernetes-ingress
+  * Controller documentation: https://www.haproxy.com/documentation/kubernetes/latest/
+  * Annotation reference: https://github.com/haproxytech/kubernetes-ingress/tree/master/documentation
+  * Image parameters reference: https://github.com/haproxytech/kubernetes-ingress/blob/master/documentation/controller.md
+
+$ kubectl get pods,services --namespace haproxy-controller
+NAME                                              READY   STATUS    RESTARTS   AGE
+pod/haproxy-kubernetes-ingress-7d6d88898f-n4rzj   1/1     Running   0          20s
+pod/haproxy-kubernetes-ingress-7d6d88898f-wh2zp   1/1     Running   0          20s
+
+NAME                                 TYPE       CLUSTER-IP   EXTERNAL-IP   PORT(S)                                                                  AGE
+service/haproxy-kubernetes-ingress   NodePort   10.96.5.94   <none>        80:30080/TCP,443:30443/TCP,443:30443/UDP,1024:30024/TCP,6060:30992/TCP   20s
+
+$ kubectl get ingressclass
+NAME                CONTROLLER                               PARAMETERS   AGE
+haproxy (default)   haproxy.org/ingress-controller/haproxy   <none>       20s
+
+$ kubectl apply -f test-deploy-1.yml -f test-2-deploy.yml
+deployment.apps/test-deploy-1 created
+deployment.apps/test-2-deploy created
+
+$ kubectl rollout status deployment/test-deploy-1 --timeout=180s
+Waiting for deployment "test-deploy-1" rollout to finish: 0 of 1 updated replicas are available...
+deployment "test-deploy-1" successfully rolled out
+
+$ kubectl rollout status deployment/test-2-deploy --timeout=180s
+Waiting for deployment "test-2-deploy" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "test-2-deploy" rollout to finish: 1 of 2 updated replicas are available...
+deployment "test-2-deploy" successfully rolled out
+
+$ kubectl apply -f test-ing-myservices.yml
+service/myserviceing1 created
+service/myserviceing2 created
+
+$ kubectl apply -f test-ing-rules.yml
+ingress.networking.k8s.io/test-ing-rules created
+
+$ kubectl get ingress
+NAME             CLASS     HOSTS     ADDRESS      PORTS   AGE
+test-ing-rules   haproxy   foo.bar   10.96.5.94   80      10s
+
+$ kubectl describe ingress test-ing-rules
+Name:             test-ing-rules
+Labels:           <none>
+Namespace:        default
+Address:          10.96.5.94
+Ingress Class:    haproxy
+Default backend:  <default>
+Rules:
+  Host        Path  Backends
+  ----        ----  --------
+  foo.bar     
+              /hello     myserviceing2:80 (10.244.2.10:80,10.244.1.10:80)
+              /getdate   myserviceing1:80 (10.244.1.9:80)
+Annotations:  haproxy.org/path-rewrite: /getdate/?(.*) /\1
+Events:       <none>
+
+$ curl -s -H 'Host: foo.bar' http://localhost:30080/hello | grep Hostname
+Hostname: test-2-deploy-6dcdfdc645-rfwd5
+
+$ curl -s -H 'Host: foo.bar' http://localhost:30080/getdate | tail -n 2
+Tue Nov 24 01:07:48 UTC 2026
+Tue Nov 24 01:07:49 UTC 2026
+
+$ curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: altro.host' http://localhost:30080/hello
+404

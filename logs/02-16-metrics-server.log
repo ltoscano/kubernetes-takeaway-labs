@@ -1,0 +1,90 @@
+
+$ helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+"metrics-server" already exists with the same configuration, skipping
+
+$ helm repo update metrics-server
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "metrics-server" chart repository
+Update Complete. ⎈Happy Helming!⎈
+
+$ helm upgrade --install metrics-server metrics-server/metrics-server --namespace kube-system --set 'args={--kubelet-insecure-tls}' --wait
+Release "metrics-server" does not exist. Installing it now.
+NAME: metrics-server
+LAST DEPLOYED: Tue Nov 24 02:11:42 2026
+NAMESPACE: kube-system
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+NOTES:
+***********************************************************************
+* Metrics Server                                                      *
+***********************************************************************
+  Chart version: 3.14.0
+  App version:   0.9.0
+  Image tag:     registry.k8s.io/metrics-server/metrics-server:v0.9.0
+***********************************************************************
+
+$ kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=180s
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io condition met
+
+$ kubectl api-versions | grep metrics
+metrics.k8s.io/v1beta1
+
+$ kubectl get apiservices v1beta1.metrics.k8s.io
+NAME                     SERVICE                      AVAILABLE   AGE
+v1beta1.metrics.k8s.io   kube-system/metrics-server   True        22s
+
+$ kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes | jq '.items[] | {name: .metadata.name, usage: .usage}'
+{
+  "name": "takeaway-control-plane",
+  "usage": {
+    "cpu": "143522325n",
+    "memory": "1226460Ki"
+  }
+}
+{
+  "name": "takeaway-worker",
+  "usage": {
+    "cpu": "45103107n",
+    "memory": "514432Ki"
+  }
+}
+{
+  "name": "takeaway-worker2",
+  "usage": {
+    "cpu": "57353760n",
+    "memory": "685900Ki"
+  }
+}
+
+$ kubectl top node
+NAME                     CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+takeaway-control-plane   144m         2%       1197Mi          15%         
+takeaway-worker          46m          0%       502Mi           6%          
+takeaway-worker2         58m          0%       669Mi           8%          
+
+$ kubectl top pods --all-namespaces --sort-by=memory | head -n 6
+NAMESPACE            NAME                                             CPU(cores)   MEMORY(bytes)   
+kube-system          kube-apiserver-takeaway-control-plane            55m          616Mi           
+kube-system          kube-controller-manager-takeaway-control-plane   15m          113Mi           
+haproxy-controller   haproxy-kubernetes-ingress-7d6d88898f-n4rzj      7m           96Mi            
+haproxy-controller   haproxy-kubernetes-ingress-7d6d88898f-wh2zp      9m           90Mi            
+kube-system          etcd-takeaway-control-plane                      25m          89Mi            
+
+$ kubectl top pod -n kube-system -l k8s-app=kube-dns --containers
+POD                        NAME      CPU(cores)   MEMORY(bytes)   
+coredns-559f6c778d-rnn8v   coredns   3m           16Mi            
+coredns-559f6c778d-whlqg   coredns   3m           17Mi            
+
+$ kubectl get --raw /api/v1/nodes/takeaway-worker/proxy/metrics/cadvisor | grep '^container_memory_working_set_bytes' | head -n 3
+container_memory_working_set_bytes{container="",id="/",image="",name="",namespace="",pod=""} 5.27781888e+08 1795482754922
+container_memory_working_set_bytes{container="",id="/kubelet.slice/kubelet-kubepods.slice",image="",name="",namespace="",pod=""} 1.97955584e+08 1795482754930
+container_memory_working_set_bytes{container="",id="/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice",image="",name="",namespace="",pod=""} 5.3313536e+07 1795482754282
+
+$ kubectl get --raw /api/v1/nodes/takeaway-worker/proxy/stats/summary | jq '.node | {nodeName, cpu: .cpu.usageNanoCores, memory: .memory.workingSetBytes}'
+{
+  "nodeName": "takeaway-worker",
+  "cpu": 47790894,
+  "memory": 527781888
+}

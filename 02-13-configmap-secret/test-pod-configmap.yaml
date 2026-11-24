@@ -1,0 +1,14 @@
+# Par. 2.13 - Le chiavi della ConfigMap my-config diventano variabili d'ambiente del container
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod-configmap
+spec:
+  restartPolicy: Never
+  containers:
+  - name: test-container
+    image: busybox:1.37
+    command: [ "/bin/sh", "-c", "env | sort" ]
+    envFrom:
+    - configMapRef:
+        name: my-config

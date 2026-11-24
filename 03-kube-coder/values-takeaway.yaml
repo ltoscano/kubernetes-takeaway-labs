@@ -1,0 +1,43 @@
+# kube-coder sul cluster kind "takeaway" del libro (Parte 3).
+# Si applica DOPO deployments/local/values.yaml del progetto e ne modifica solo
+# ciò che dipende dal nostro cluster.
+
+# Namespace dedicato al workspace (tenant) dell'utente "local"
+namespace: ws-local
+
+user:
+  name: local
+  host: kube-coder.local     # nome host usato dalla regola Ingress
+  pvcSize: 5Gi               # volume persistente montato su /home/dev
+
+# Immagine costruita in locale e caricata nei nodi con "kind load docker-image"
+image:
+  repository: kube-coder
+  tag: local
+  pullPolicy: IfNotPresent
+  pullSecretName: ""
+
+# Le NetworkPolicy del chart contengono gli intervalli di rete del cluster
+# di riferimento del progetto (DigitalOcean): qui mettiamo quelli del nostro
+# cluster kind (podSubnet 10.244.0.0/16, serviceSubnet 10.96.0.0/20).
+networkPolicy:
+  egress:
+    flavor: networkpolicy
+    deniedCIDRs:
+      - "169.254.0.0/16"     # metadati del cloud provider
+      - "10.244.0.0/16"      # pod degli altri tenant
+      - "10.96.0.0/20"       # service del cluster
+    dns:
+      serviceIPs:
+        - "10.96.0.10/32"    # kubectl -n kube-system get svc kube-dns
+    apiServerIPs:
+      - "10.96.0.1/32"       # service "kubernetes" nel namespace default
+
+# Risorse adatte a un portatile
+resources:
+  requests:
+    cpu: "250m"
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi

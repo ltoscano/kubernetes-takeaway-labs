@@ -1,0 +1,14 @@
+# Par. 2.12 - Valori predefiniti di requests/limits per i container del namespace development
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-development
+spec:
+  limits:
+  - default:
+      memory: 256Mi
+      cpu: 250m
+    defaultRequest:
+      memory: 128Mi
+      cpu: 250m
+    type: Container

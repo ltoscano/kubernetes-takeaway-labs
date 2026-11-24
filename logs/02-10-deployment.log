@@ -1,0 +1,140 @@
+
+$ kubectl create deployment test-deploy-1 --image=nginx:1.29 --image=debian:13 --dry-run=client --output yaml > /tmp/test-deploy-1-generato.yml
+
+$ cat /tmp/test-deploy-1-generato.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: test-deploy-1
+  name: test-deploy-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-deploy-1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: test-deploy-1
+    spec:
+      containers:
+      - image: nginx:1.29
+        name: nginx
+        resources: {}
+      - image: debian:13
+        name: debian
+        resources: {}
+status: {}
+
+$ kubectl create -f test-deploy-1.yml
+deployment.apps/test-deploy-1 created
+
+$ kubectl rollout status deployment/test-deploy-1 --timeout=180s
+Waiting for deployment "test-deploy-1" rollout to finish: 0 of 1 updated replicas are available...
+deployment "test-deploy-1" successfully rolled out
+
+$ kubectl get deployments -o wide
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                 SELECTOR
+test-deploy-1   1/1     1            1           4s    web,writer   nginx:1.29,debian:13   app=test-deploy-1
+
+$ kubectl get pods -o wide
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE              NOMINATED NODE   READINESS GATES
+test-deploy-1-5b4cbdd996-jlsrb   2/2     Running   0          4s    10.244.2.6   takeaway-worker   <none>           <none>
+
+$ kubectl scale --replicas=2 deployment/test-deploy-1
+deployment.apps/test-deploy-1 scaled
+
+$ kubectl rollout status deployment/test-deploy-1 --timeout=180s
+Waiting for deployment "test-deploy-1" rollout to finish: 1 of 2 updated replicas are available...
+deployment "test-deploy-1" successfully rolled out
+
+$ kubectl get pods -o wide
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES
+test-deploy-1-5b4cbdd996-jlsrb   2/2     Running   0          8s    10.244.2.6   takeaway-worker    <none>           <none>
+test-deploy-1-5b4cbdd996-z4nsf   2/2     Running   0          4s    10.244.1.6   takeaway-worker2   <none>           <none>
+
+$ kubectl logs test-deploy-1-5b4cbdd996-jlsrb -c web --tail=3
+2026/11/24 01:06:55 [notice] 1#1: start worker process 36
+2026/11/24 01:06:55 [notice] 1#1: start worker process 37
+2026/11/24 01:06:55 [notice] 1#1: start worker process 38
+
+$ kubectl exec test-deploy-1-5b4cbdd996-jlsrb --container web -- /bin/cat /usr/share/nginx/html/index.html | tail -n 3
+Tue Nov 24 01:06:59 UTC 2026
+Tue Nov 24 01:07:00 UTC 2026
+Tue Nov 24 01:07:01 UTC 2026
+
+$ kubectl exec test-deploy-1-5b4cbdd996-jlsrb --container writer -- /bin/cat /html/index.html | tail -n 3
+Tue Nov 24 01:06:59 UTC 2026
+Tue Nov 24 01:07:00 UTC 2026
+Tue Nov 24 01:07:01 UTC 2026
+
+$ kubectl expose deployment test-deploy-1 --name myservice --type=NodePort --port=80
+service/myservice exposed
+
+$ kubectl describe service myservice
+Name:                     myservice
+Namespace:                default
+Labels:                   app=test-deploy-1
+Annotations:              <none>
+Selector:                 app=test-deploy-1
+Type:                     NodePort
+IP Family Policy:         SingleStack
+IP Families:              IPv4
+IP:                       10.96.5.38
+IPs:                      10.96.5.38
+Port:                     <unset>  80/TCP
+TargetPort:               80/TCP
+NodePort:                 <unset>  31614/TCP
+Endpoints:                10.244.2.6:80,10.244.1.6:80
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Internal Traffic Policy:  Cluster
+Events:                   <none>
+
+$ kubectl get endpointslices -l kubernetes.io/service-name=myservice
+NAME              ADDRESSTYPE   PORTS   ENDPOINTS               AGE
+myservice-9gd2k   IPv4          80      10.244.2.6,10.244.1.6   5s
+
+$ docker exec takeaway-control-plane curl -s http://192.168.32.2:31614 | tail -n 2
+Tue Nov 24 01:07:05 UTC 2026
+Tue Nov 24 01:07:06 UTC 2026
+
+$ kubectl run curl --image=curlimages/curl:8.17.0 --restart=Never --command -- sleep infinity
+pod/curl created
+
+$ kubectl exec curl -- sh -c 'curl -s http://myservice | tail -n 2'
+Tue Nov 24 01:07:09 UTC 2026
+Tue Nov 24 01:07:10 UTC 2026
+
+$ kubectl expose deployment test-deploy-1 --name myservicelb --type=LoadBalancer --port=80
+service/myservicelb exposed
+
+$ kubectl get services
+NAME          TYPE           CLUSTER-IP   EXTERNAL-IP   PORT(S)        AGE
+kubernetes    ClusterIP      10.96.0.1    <none>        443/TCP        3m34s
+myservice     NodePort       10.96.5.38   <none>        80:31614/TCP   13s
+myservicelb   LoadBalancer   10.96.2.97   <pending>     80:30141/TCP   5s
+
+$ kubectl apply -f test-deploy-1-sidecar.yml
+deployment.apps/test-deploy-sidecar created
+
+$ kubectl rollout status deployment/test-deploy-sidecar --timeout=180s
+Waiting for deployment "test-deploy-sidecar" rollout to finish: 0 of 1 updated replicas are available...
+deployment "test-deploy-sidecar" successfully rolled out
+
+$ kubectl get pods -l app=test-deploy-sidecar
+NAME                                   READY   STATUS    RESTARTS   AGE
+test-deploy-sidecar-7c59c64bb5-fzj8s   2/2     Running   0          0s
+
+$ kubectl get pod -l app=test-deploy-sidecar -o jsonpath='{range .items[0].status.initContainerStatuses[*]}{.name}{" started="}{.started}{" ready="}{.ready}{"\n"}{end}'
+writer started=true ready=true
+
+$ kubectl delete service myservice myservicelb
+service "myservice" deleted from default namespace
+service "myservicelb" deleted from default namespace
+
+$ kubectl delete deployment test-deploy-1 test-deploy-sidecar
+deployment.apps "test-deploy-1" deleted from default namespace
+deployment.apps "test-deploy-sidecar" deleted from default namespace

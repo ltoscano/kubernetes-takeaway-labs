@@ -1,0 +1,54 @@
+
+$ kubectl run busybox --image=busybox:1.37 --restart=OnFailure --env=exitCode=0 -- sh -c 'sleep 30 && exit $exitCode'
+pod/busybox created
+
+$ kubectl get pods busybox --watch   (interrotto dopo 45s)
+NAME      READY   STATUS              RESTARTS   AGE
+busybox   0/1     ContainerCreating   0          0s
+busybox   0/1     ContainerCreating   0          1s
+busybox   1/1     Running             0          3s
+busybox   0/1     Completed           0          33s
+busybox   0/1     Completed           0          34s
+
+$ kubectl get pod busybox -o wide
+NAME      READY   STATUS      RESTARTS   AGE   IP           NODE              NOMINATED NODE   READINESS GATES
+busybox   0/1     Completed   0          45s   10.244.2.4   takeaway-worker   <none>           <none>
+
+$ kubectl run busybox --image=busybox:1.37 --restart=OnFailure --env=exitCode=1 -- sh -c 'sleep 30 && exit $exitCode' || true
+Error from server (AlreadyExists): pods "busybox" already exists
+
+$ kubectl describe pod busybox | sed -n '/^Events:/,$p'
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  45s   default-scheduler  Successfully assigned default/busybox to takeaway-worker
+  Normal  Pulling    44s   kubelet            spec.containers{busybox}: Pulling image "busybox:1.37"
+  Normal  Pulled     42s   kubelet            spec.containers{busybox}: Successfully pulled image "busybox:1.37" in 2.143s (2.143s including waiting). Image size: 1911395 bytes.
+  Normal  Created    42s   kubelet            spec.containers{busybox}: Container created
+  Normal  Started    42s   kubelet            spec.containers{busybox}: Container started
+
+$ kubectl delete pod busybox
+pod "busybox" deleted from default namespace
+
+$ kubectl run busybox --image=busybox:1.37 --restart=OnFailure --env=exitCode=1 -- sh -c 'sleep 30 && exit $exitCode'
+pod/busybox created
+
+$ kubectl get pods busybox --watch   (interrotto dopo 100s)
+NAME      READY   STATUS              RESTARTS   AGE
+busybox   0/1     ContainerCreating   0          0s
+busybox   0/1     ContainerCreating   0          1s
+busybox   1/1     Running             0          1s
+busybox   0/1     Error               0          31s
+busybox   1/1     Running             1 (0s ago)   31s
+busybox   0/1     Error               1 (30s ago)   61s
+busybox   0/1     CrashLoopBackOff    1 (13s ago)   74s
+busybox   1/1     Running             2 (13s ago)   74s
+
+$ kubectl describe pod busybox | grep -E 'BackOff|Restart Count|Last State|Exit Code' || true
+    Last State:     Terminated
+      Exit Code:    1
+    Restart Count:  2
+  Warning  BackOff    39s                kubelet            spec.containers{busybox}: Back-off restarting failed container busybox in pod busybox_default(5e4be08c-0484-47a9-a921-8cb100f1987f)
+
+$ kubectl delete pod busybox --now
+pod "busybox" deleted from default namespace

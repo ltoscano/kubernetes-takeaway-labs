@@ -1,0 +1,44 @@
+
+$ kubectl apply -f nginx-deployment.yaml
+deployment.apps/nginx-deployment created
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=180s
+Waiting for deployment "nginx-deployment" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 of 3 updated replicas are available...
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl get deployment nginx-deployment
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           5s
+
+$ kubectl get pods -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE               NOMINATED NODE   READINESS GATES
+nginx-deployment-6c6cdf46b9-24t4c   1/1     Running   0          5s    10.244.2.2   takeaway-worker    <none>           <none>
+nginx-deployment-6c6cdf46b9-2d9sj   1/1     Running   0          5s    10.244.1.4   takeaway-worker2   <none>           <none>
+nginx-deployment-6c6cdf46b9-gjrd7   1/1     Running   0          5s    10.244.2.3   takeaway-worker    <none>           <none>
+
+$ kubectl apply -f /tmp/nginx-deployment-2.yaml
+deployment.apps/nginx-deployment configured
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=120s
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl get deployment nginx-deployment
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   2/2     2            2           5s
+
+$ kubectl describe node takeaway-control-plane | grep Taints
+Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+
+$ kubectl taint nodes takeaway-worker2 bar:NoSchedule
+node/takeaway-worker2 tainted
+
+$ kubectl describe node takeaway-worker2 | grep Taints
+Taints:             bar:NoSchedule
+
+$ kubectl taint nodes takeaway-worker2 bar:NoSchedule-
+node/takeaway-worker2 untainted
+
+$ kubectl delete -f nginx-deployment.yaml
+deployment.apps "nginx-deployment" deleted from default namespace

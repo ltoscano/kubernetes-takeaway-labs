@@ -1,0 +1,142 @@
+
+$ kubectl apply -f nginx-deployment.yaml
+deployment.apps/nginx-deployment created
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=120s
+Waiting for deployment "nginx-deployment" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 of 3 updated replicas are available...
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl describe deployment nginx-deployment | grep -E 'StrategyType|RollingUpdateStrategy|Image:'
+StrategyType:           RollingUpdate
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+    Image:         nginx:1.28
+
+$ kubectl set image deployment/nginx-deployment nginx=nginx:1.29
+deployment.apps/nginx-deployment image updated
+
+$ kubectl annotate deployment/nginx-deployment kubernetes.io/change-cause='aggiornamento a nginx 1.29'
+deployment.apps/nginx-deployment annotated
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=180s
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 old replicas are pending termination...
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl rollout history deployment/nginx-deployment
+deployment.apps/nginx-deployment 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         aggiornamento a nginx 1.29
+
+
+$ kubectl rollout history deployment/nginx-deployment --revision=2
+deployment.apps/nginx-deployment with revision #2
+Pod Template:
+  Labels:	app=nginx
+	pod-template-hash=66f67fb975
+  Annotations:	kubernetes.io/change-cause: aggiornamento a nginx 1.29
+  Containers:
+   nginx:
+    Image:	nginx:1.29
+    Port:	80/TCP
+    Host Port:	0/TCP
+    Environment:	<none>
+    Mounts:	<none>
+  Volumes:	<none>
+  Node-Selectors:	<none>
+  Tolerations:	<none>
+
+
+$ kubectl describe deployment/nginx-deployment | grep 'Image:'
+    Image:         nginx:1.29
+
+$ kubectl rollout pause deployment/nginx-deployment
+deployment.apps/nginx-deployment paused
+
+$ kubectl rollout resume deployment/nginx-deployment
+deployment.apps/nginx-deployment resumed
+
+$ kubectl rollout undo deployment/nginx-deployment --to-revision=1
+Warning: resource deployments/nginx-deployment was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/nginx-deployment rolled back
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=180s
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 old replicas are pending termination...
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl rollout history deployment/nginx-deployment
+deployment.apps/nginx-deployment 
+REVISION  CHANGE-CAUSE
+2         aggiornamento a nginx 1.29
+3         <none>
+
+
+$ kubectl describe deployment/nginx-deployment | grep 'Image:'
+    Image:         nginx:1.28
+
+$ kubectl patch deployment nginx-deployment -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+deployment.apps/nginx-deployment patched
+
+$ kubectl set image deployment/nginx-deployment nginx=nginx:1.29
+deployment.apps/nginx-deployment image updated
+
+$ kubectl rollout status deployment/nginx-deployment --timeout=180s
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 out of 3 new replicas have been updated...
+Waiting for deployment "nginx-deployment" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "nginx-deployment" rollout to finish: 2 of 3 updated replicas are available...
+deployment "nginx-deployment" successfully rolled out
+
+$ kubectl describe deployment nginx-deployment | grep -E 'StrategyType|Image:'
+StrategyType:       Recreate
+    Image:         nginx:1.29
+
+$ kubectl apply -f blue-green.yaml
+deployment.apps/my-nginx-app-blue created
+deployment.apps/my-nginx-app-green created
+service/my-inbound-service created
+
+$ kubectl rollout status deployment/my-nginx-app-blue --timeout=120s
+Waiting for deployment "my-nginx-app-blue" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "my-nginx-app-blue" rollout to finish: 1 of 2 updated replicas are available...
+deployment "my-nginx-app-blue" successfully rolled out
+
+$ kubectl rollout status deployment/my-nginx-app-green --timeout=120s
+deployment "my-nginx-app-green" successfully rolled out
+
+$ kubectl exec curl -- sh -c 'curl -s http://my-inbound-service | grep Name'
+Name: BLUE
+
+$ kubectl patch service my-inbound-service -p '{"spec":{"selector":{"app":"my-nginx-app","version":"green"}}}'
+service/my-inbound-service patched
+
+$ kubectl exec curl -- sh -c 'curl -s http://my-inbound-service | grep Name'
+Name: GREEN
+
+$ kubectl delete -f blue-green.yaml -f nginx-deployment.yaml
+deployment.apps "my-nginx-app-blue" deleted from default namespace
+deployment.apps "my-nginx-app-green" deleted from default namespace
+service "my-inbound-service" deleted from default namespace
+deployment.apps "nginx-deployment" deleted from default namespace

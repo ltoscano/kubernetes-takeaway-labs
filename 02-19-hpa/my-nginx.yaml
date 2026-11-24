@@ -1,0 +1,36 @@
+# Par. 2.19 - Deployment e Service per la prova di autoscaling.
+# Le requests di CPU sono indispensabili: l'HPA calcola l'utilizzo in percentuale delle requests.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-nginx
+  template:
+    metadata:
+      labels:
+        app: my-nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.29
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: 50m
+          limits:
+            cpu: 200m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx
+spec:
+  selector:
+    app: my-nginx
+  ports:
+  - port: 80

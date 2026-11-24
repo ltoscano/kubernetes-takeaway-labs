@@ -1,0 +1,42 @@
+# Par. 2.10 - Pod multi-container con volume condiviso (emptyDir):
+#  - il container "writer" (debian) aggiunge ogni secondo la data al file /html/index.html
+#  - il container "web" (nginx) pubblica lo stesso file via HTTP
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: test-deploy-1
+  name: test-deploy-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-deploy-1
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: test-deploy-1
+    spec:
+      volumes:
+      - name: html
+        emptyDir: {}
+      containers:
+      - image: nginx:1.29
+        name: web
+        resources: {}
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+      - image: debian:13
+        name: writer
+        resources: {}
+        volumeMounts:
+        - name: html
+          mountPath: /html
+        command: ["/bin/sh", "-c"]
+        args:
+        - while true; do
+            date >> /html/index.html;
+            sleep 1;
+          done

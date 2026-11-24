@@ -1,0 +1,11 @@
+# Par. 2.18 - Pod vincolato ai nodi con etichetta hardware=highmem
+kind: Pod
+apiVersion: v1
+metadata:
+  name: tf-mnist-nodeselector
+spec:
+  containers:
+  - name: tf-mnist
+    image: registry.k8s.io/pause:3.10
+  nodeSelector:
+    hardware: highmem

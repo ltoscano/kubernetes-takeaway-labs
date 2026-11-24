@@ -1,0 +1,56 @@
+
+$ kubectl version
+Client Version: v1.36.1
+Kustomize Version: v5.8.1
+Server Version: v1.37.0
+
+$ kubectl get nodes -o wide
+NAME                     STATUS   ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE                       KERNEL-VERSION            CONTAINER-RUNTIME
+takeaway-control-plane   Ready    control-plane   28s   v1.37.0   192.168.32.3   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+takeaway-worker          Ready    <none>          14s   v1.37.0   192.168.32.2   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+takeaway-worker2         Ready    <none>          14s   v1.37.0   192.168.32.4   <none>        Debian GNU/Linux 13 (trixie)   7.0.14-linuxkit (arm64)   containerd://2.3.4
+
+$ docker exec takeaway-control-plane grep -E 'kind:|kubernetesVersion|podSubnet|serviceSubnet|advertiseAddress' /kind/kubeadm.conf
+kind: ClusterConfiguration
+kubernetesVersion: v1.37.0
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/20
+kind: InitConfiguration
+  advertiseAddress: 192.168.32.3
+    value: kind://docker/takeaway/takeaway-control-plane
+    advertiseAddress: 192.168.32.3
+kind: JoinConfiguration
+    value: kind://docker/takeaway/takeaway-control-plane
+kind: KubeletConfiguration
+kind: KubeProxyConfiguration
+
+$ docker exec takeaway-control-plane ls /etc/kubernetes/manifests
+etcd.yaml
+kube-apiserver.yaml
+kube-controller-manager.yaml
+kube-scheduler.yaml
+
+$ kubectl get namespaces
+NAME                 STATUS   AGE
+default              Active   29s
+kube-flannel         Active   10s
+kube-node-lease      Active   29s
+kube-public          Active   29s
+kube-system          Active   29s
+local-path-storage   Active   26s
+
+$ kubectl get pods --namespace kube-system -o wide
+NAME                                             READY   STATUS              RESTARTS   AGE   IP             NODE                     NOMINATED NODE   READINESS GATES
+coredns-559f6c778d-rnn8v                         0/1     ContainerCreating   0          20s   <none>         takeaway-worker2         <none>           <none>
+coredns-559f6c778d-whlqg                         0/1     ContainerCreating   0          20s   <none>         takeaway-worker2         <none>           <none>
+etcd-takeaway-control-plane                      1/1     Running             0          27s   192.168.32.3   takeaway-control-plane   <none>           <none>
+kube-apiserver-takeaway-control-plane            1/1     Running             0          27s   192.168.32.3   takeaway-control-plane   <none>           <none>
+kube-controller-manager-takeaway-control-plane   1/1     Running             0          27s   192.168.32.3   takeaway-control-plane   <none>           <none>
+kube-proxy-9m8hs                                 1/1     Running             0          15s   192.168.32.4   takeaway-worker2         <none>           <none>
+kube-proxy-jf89n                                 1/1     Running             0          20s   192.168.32.3   takeaway-control-plane   <none>           <none>
+kube-proxy-k6rz9                                 1/1     Running             0          15s   192.168.32.2   takeaway-worker          <none>           <none>
+kube-scheduler-takeaway-control-plane            1/1     Running             0          28s   192.168.32.3   takeaway-control-plane   <none>           <none>
+
+$ kubectl get daemonset --namespace kube-system
+NAME         DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-proxy   3         3         3       3            3           kubernetes.io/os=linux   27s

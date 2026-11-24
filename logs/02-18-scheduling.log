@@ -1,0 +1,100 @@
+
+$ kubectl taint node takeaway-worker sku=gpu:NoSchedule
+node/takeaway-worker tainted
+
+$ kubectl label node takeaway-worker sku=gpu
+node/takeaway-worker labeled
+
+$ kubectl apply -f pod-toleration.yaml
+pod/tf-mnist-toleration created
+
+$ kubectl wait --for=condition=Ready pod/tf-mnist-toleration --timeout=120s
+pod/tf-mnist-toleration condition met
+
+$ kubectl get pod tf-mnist-toleration -o wide
+NAME                  READY   STATUS    RESTARTS   AGE   IP            NODE              NOMINATED NODE   READINESS GATES
+tf-mnist-toleration   1/1     Running   0          0s    10.244.2.31   takeaway-worker   <none>           <none>
+
+$ kubectl apply -f pod-nodeselector.yaml
+pod/tf-mnist-nodeselector created
+
+$ kubectl get pod tf-mnist-nodeselector
+NAME                    READY   STATUS    RESTARTS   AGE
+tf-mnist-nodeselector   0/1     Pending   0          6s
+
+$ kubectl describe pod tf-mnist-nodeselector | sed -n '/^Events:/,$p'
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  6s    default-scheduler  0/3 nodes are available: 1 node(s) didn't match Pod's node affinity/selector, 2 node(s) had untolerated taint(s). preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+
+$ kubectl label node takeaway-worker2 hardware=highmem
+node/takeaway-worker2 labeled
+
+$ kubectl wait --for=condition=Ready pod/tf-mnist-nodeselector --timeout=120s
+pod/tf-mnist-nodeselector condition met
+
+$ kubectl get pod tf-mnist-nodeselector -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP            NODE               NOMINATED NODE   READINESS GATES
+tf-mnist-nodeselector   1/1     Running   0          6s    10.244.1.14   takeaway-worker2   <none>           <none>
+
+$ kubectl apply -f pod-nodeaffinity.yaml
+pod/tf-mnist-nodeaffinity created
+
+$ kubectl wait --for=condition=Ready pod/tf-mnist-nodeaffinity --timeout=120s
+pod/tf-mnist-nodeaffinity condition met
+
+$ kubectl get pod tf-mnist-nodeaffinity -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP            NODE               NOMINATED NODE   READINESS GATES
+tf-mnist-nodeaffinity   1/1     Running   0          1s    10.244.1.15   takeaway-worker2   <none>           <none>
+
+$ kubectl taint node takeaway-worker sku=gpu:NoSchedule-
+node/takeaway-worker untainted
+
+$ kubectl apply -f cache.yaml
+deployment.apps/cache created
+
+$ kubectl rollout status deployment/cache --timeout=180s
+Waiting for deployment "cache" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "cache" rollout to finish: 1 of 2 updated replicas are available...
+deployment "cache" successfully rolled out
+
+$ kubectl apply -f web-server.yaml
+deployment.apps/web-server created
+
+$ kubectl rollout status deployment/web-server --timeout=180s
+Waiting for deployment "web-server" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web-server" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web-server" successfully rolled out
+
+$ kubectl get pods -l 'app in (cache,webstore)' -o wide --sort-by=.spec.nodeName | awk '{print $1, $3, $7}' | column -t
+NAME                        STATUS   NODE
+cache-64f58c7d4f-pc56m      Running  takeaway-worker
+web-server-ddf7c7fff-fq7lc  Running  takeaway-worker
+cache-64f58c7d4f-cjmkr      Running  takeaway-worker2
+web-server-ddf7c7fff-lhmx4  Running  takeaway-worker2
+
+$ kubectl cordon takeaway-worker2
+node/takeaway-worker2 cordoned
+
+$ kubectl get nodes
+NAME                     STATUS                     ROLES           AGE   VERSION
+takeaway-control-plane   Ready                      control-plane   11m   v1.37.0
+takeaway-worker          Ready                      <none>          11m   v1.37.0
+takeaway-worker2         Ready,SchedulingDisabled   <none>          11m   v1.37.0
+
+$ kubectl uncordon takeaway-worker2
+node/takeaway-worker2 uncordoned
+
+$ kubectl delete -f pod-toleration.yaml -f pod-nodeselector.yaml -f pod-nodeaffinity.yaml -f web-server.yaml -f cache.yaml
+pod "tf-mnist-toleration" deleted from default namespace
+pod "tf-mnist-nodeselector" deleted from default namespace
+pod "tf-mnist-nodeaffinity" deleted from default namespace
+deployment.apps "web-server" deleted from default namespace
+deployment.apps "cache" deleted from default namespace
+
+$ kubectl label node takeaway-worker2 hardware-
+node/takeaway-worker2 unlabeled
+
+$ kubectl label node takeaway-worker sku-
+node/takeaway-worker unlabeled

@@ -1,0 +1,28 @@
+# Par. 2.11 - Regole di instradamento (fan-out per URL path) per l'host foo.bar
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-ing-rules
+  annotations:
+    # /getdate/qualcosa -> /qualcosa (l'nginx di destinazione non conosce /getdate)
+    haproxy.org/path-rewrite: /getdate/?(.*) /\1
+spec:
+  ingressClassName: haproxy
+  rules:
+  - host: foo.bar
+    http:
+      paths:
+      - path: /hello
+        pathType: Prefix
+        backend:
+          service:
+            name: myserviceing2
+            port:
+              number: 80
+      - path: /getdate
+        pathType: Prefix
+        backend:
+          service:
+            name: myserviceing1
+            port:
+              number: 80

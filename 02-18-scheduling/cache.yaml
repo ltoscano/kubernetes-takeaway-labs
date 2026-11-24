@@ -1,0 +1,28 @@
+# Par. 2.18 - La "cache": 2 repliche, mai due sullo stesso nodo (podAntiAffinity)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache
+spec:
+  selector:
+    matchLabels:
+      app: cache
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: cache
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - cache
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: redis
+        image: redis:8-alpine

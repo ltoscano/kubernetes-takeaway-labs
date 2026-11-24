@@ -1,0 +1,226 @@
+
+$ git -C kube-coder describe --tags
+v1.87.2
+
+$ docker image ls kube-coder:local
+IMAGE              ID             DISK USAGE   CONTENT SIZE   EXTRA
+kube-coder:local   ba45f40b6795       9.87GB         2.68GB        
+
+$ kind load docker-image kube-coder:local --name takeaway --nodes takeaway-worker,takeaway-worker2
+Image: "kube-coder:local" with ID "sha256:ba45f40b67957a35b0a23287430a221bffe2d6b9e05af61e7032a1823b1c7e1e" not yet present on node "takeaway-worker", loading...
+Image: "kube-coder:local" with ID "sha256:ba45f40b67957a35b0a23287430a221bffe2d6b9e05af61e7032a1823b1c7e1e" not yet present on node "takeaway-worker2", loading...
+
+$ docker exec takeaway-worker crictl images | grep -E 'IMAGE|kube-coder'
+IMAGE                                                   TAG                  IMAGE ID            SIZE
+docker.io/library/kube-coder                            local                9f2386bb7077e       2.68GB
+
+$ kubectl create namespace ws-local --dry-run=client -o yaml | kubectl apply -f -
+namespace/ws-local created
+
+$ kubectl create secret generic kube-coder-basic-auth --namespace ws-local   --from-literal=auth="admin:$(openssl passwd -apr1 admin)" --dry-run=client -o yaml | kubectl apply -f -
+secret/kube-coder-basic-auth created
+
+$ helm upgrade --install base-infrastructure kube-coder/charts/base-infrastructure --namespace ws-local --set namespace=ws-local --wait
+Release "base-infrastructure" does not exist. Installing it now.
+NAME: base-infrastructure
+LAST DEPLOYED: Tue Nov 24 09:25:10 2026
+NAMESPACE: ws-local
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+
+$ helm upgrade --install ws-local kube-coder/charts/workspace --namespace ws-local -f kube-coder/deployments/local/values.yaml -f values-takeaway.yaml --wait --timeout 10m
+Release "ws-local" does not exist. Installing it now.
+NAME: ws-local
+LAST DEPLOYED: Tue Nov 24 09:25:10 2026
+NAMESPACE: ws-local
+STATUS: deployed
+REVISION: 1
+DESCRIPTION: Install complete
+TEST SUITE: None
+
+$ helm list --namespace ws-local
+NAME               	NAMESPACE	REVISION	UPDATED                             	STATUS  	CHART                    	APP VERSION
+base-infrastructure	ws-local 	1       	2026-11-24 09:25:10.327274 +0100 CET	deployed	base-infrastructure-0.1.0	1.87.2     
+ws-local           	ws-local 	1       	2026-11-24 09:25:10.442705 +0100 CET	deployed	workspace-0.1.0          	1.87.2     
+
+$ kubectl get deployment,pod,service,ingress,pvc --namespace ws-local -o wide
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                                                                                                            SELECTOR
+deployment.apps/holding-local   1/1     1            1           34s   holding      nginxinc/nginx-unprivileged:1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e   app=holding-local
+deployment.apps/ws-local        1/1     1            1           34s   ide          kube-coder:local                                                                                                  app=ws-local
+
+NAME                                READY   STATUS    RESTARTS   AGE   IP            NODE               NOMINATED NODE   READINESS GATES
+pod/holding-local-57df6fd57-mjvlp   1/1     Running   0          34s   10.244.1.32   takeaway-worker2   <none>           <none>
+pod/ws-local-d6d8d6565-wwc48        1/1     Running   0          34s   10.244.2.56   takeaway-worker    <none>           <none>
+
+NAME                    TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)                               AGE   SELECTOR
+service/holding-local   ClusterIP   10.96.10.53   <none>        80/TCP                                34s   app=holding-local
+service/ws-local        ClusterIP   10.96.1.114   <none>        8080/TCP,7681/TCP,6080/TCP,6081/TCP   34s   app=ws-local
+
+NAME                                           CLASS   HOSTS              ADDRESS   PORTS   AGE
+ingress.networking.k8s.io/ws-local             nginx   kube-coder.local             80      34s
+ingress.networking.k8s.io/ws-local-browser     nginx   kube-coder.local             80      34s
+ingress.networking.k8s.io/ws-local-terminal    nginx   kube-coder.local             80      34s
+ingress.networking.k8s.io/ws-local-vnc         nginx   kube-coder.local             80      34s
+ingress.networking.k8s.io/ws-local-websocket   nginx   kube-coder.local             80      34s
+
+NAME                                  STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/ws-local-home   Bound    pvc-6c7b7250-cbd5-4539-8792-ada3c4ccf3cd   5Gi        RWO            standard       <unset>                 35s   Filesystem
+
+$ kubectl get serviceaccount,role,rolebinding,resourcequota,limitrange,networkpolicy --namespace ws-local
+NAME                      AGE
+serviceaccount/default    35s
+serviceaccount/ws-local   35s
+
+NAME                                            CREATED AT
+role.rbac.authorization.k8s.io/ws-local-build   2026-11-24T08:25:10Z
+
+NAME                                                        ROLE                               AGE
+rolebinding.rbac.authorization.k8s.io/ws-local-build        Role/ws-local-build                35s
+rolebinding.rbac.authorization.k8s.io/ws-local-controller   ClusterRole/workspace-controller   35s
+
+NAME                           REQUEST                                                            LIMIT                                            AGE
+resourcequota/ws-local-quota   pods: 2/20, requests.cpu: 260m/750m, requests.memory: 1040Mi/2Gi   limits.cpu: 2050m/4, limits.memory: 3104Mi/7Gi   35s
+
+NAME                         CREATED AT
+limitrange/ws-local-limits   2026-11-24T08:25:10Z
+
+NAME                                               POD-SELECTOR        AGE
+networkpolicy.networking.k8s.io/ws-local-egress    app=ws-local        35s
+networkpolicy.networking.k8s.io/ws-local-ingress   app in (ws-local)   35s
+
+$ kubectl describe resourcequota --namespace ws-local
+Name:            ws-local-quota
+Namespace:       ws-local
+Resource         Used    Hard
+--------         ----    ----
+limits.cpu       2050m   4
+limits.memory    3104Mi  7Gi
+pods             2       20
+requests.cpu     260m    750m
+requests.memory  1040Mi  2Gi
+
+$ kubectl get deployment ws-local --namespace ws-local -o jsonpath='{.spec.strategy.type}{"\n"}'
+Recreate
+
+$ kubectl get pod --namespace ws-local -l app=ws-local -o jsonpath='{.items[0].spec.securityContext}{"\n"}'
+{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}}
+
+$ kubectl get pod --namespace ws-local -l app=ws-local -o jsonpath='{range .items[0].spec.containers[*]}{.name}{"  "}{.resources}{"\n"}{end}'
+ide  {"limits":{"cpu":"2","memory":"3Gi"},"requests":{"cpu":"250m","memory":"1Gi"}}
+
+$ kubectl get pvc ws-local-home --namespace ws-local -o jsonpath='{.metadata.annotations}{"\n"}'
+{"helm.sh/resource-policy":"keep","meta.helm.sh/release-name":"ws-local","meta.helm.sh/release-namespace":"ws-local","pv.kubernetes.io/bind-completed":"yes","pv.kubernetes.io/bound-by-controller":"yes","volume.beta.kubernetes.io/storage-provisioner":"rancher.io/local-path","volume.kubernetes.io/selected-node":"takeaway-worker","volume.kubernetes.io/storage-provisioner":"rancher.io/local-path"}
+
+$ kubectl port-forward --namespace ingress-nginx svc/ingress-nginx-controller 8081:80 &
+
+$ curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: kube-coder.local' http://localhost:8081/
+401
+
+$ curl -s -o /dev/null -w '%{http_code}\n' -u admin:admin -H 'Host: kube-coder.local' http://localhost:8081/
+200
+
+$ curl -s -u admin:admin -H 'Host: kube-coder.local' http://localhost:8081/health; echo
+{"status": "healthy", "services": {"vscode": {"status": "up", "port": 8080}, "terminal": {"status": "up", "port": 7681}, "browser": {"status": "up", "port": 6081}}, "timestamp": 1795508748.3110979}
+
+$ kubectl exec --namespace ws-local deploy/ws-local -c ide -- bash -lc 'claude --version; codex --version; opencode --version; tmux -V'
+2.1.325 (Claude Code)
+codex-cli 0.169.0
+1.19.5
+tmux 3.4
+
+$ curl -s -u admin:admin -H 'Host: kube-coder.local' -H 'Content-Type: application/json'   -d '{"prompt": "Elenca i file in /home/dev", "assistant": "claude"}'   http://localhost:8081/api/claude/tasks | tee /tmp/kc-task.json | jq '{task_id, status, assistant, tmux_session}'
+{
+  "task_id": "1795508749-63f50d0d",
+  "status": "running",
+  "assistant": "claude",
+  "tmux_session": "kube-coder-1795508749-63f50d0d"
+}
+
+$ curl -s -u admin:admin -H 'Host: kube-coder.local' http://localhost:8081/api/claude/tasks | jq '.tasks[] | {task_id, status, prompt}'
+{
+  "task_id": "1795508749-63f50d0d",
+  "status": "running",
+  "prompt": "Elenca i file in /home/dev"
+}
+
+$ kubectl exec --namespace ws-local deploy/ws-local -c ide -- tmux ls
+kube-coder-1795508749-63f50d0d: 1 windows (created Tue Nov 24 08:25:49 2026)
+
+$ kubectl exec --namespace ws-local deploy/ws-local -c ide -- tmux capture-pane -p -t kube-coder-1795508749-63f50d0d | grep -v '^\s*$' | head -15
+ ▐▛███▛█   Claude Code v2.1.325
+▝▜██████▀  Opus 5.5 · API Usage Billing
+ ▝▝   ▝▝   /home/dev
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude checks each tool call for risky actions and prompt injection before executing, runs the ones it assesses as lower-risk, and blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)                                                                                                                                                          Not logged in · Run /login
+                                                                                                                                               ✘ Auto-update failed: no write permission to npm prefix · Run claude doctor
+
+$ curl -s -u admin:admin -H 'Host: kube-coder.local' -X DELETE http://localhost:8081/api/claude/tasks/1795508749-63f50d0d | jq '{task_id, status}'
+{
+  "task_id": "1795508749-63f50d0d",
+  "status": "killed"
+}
+
+$ kubectl auth can-i create jobs --namespace ws-local --as=system:serviceaccount:ws-local:ws-local
+yes
+
+$ kubectl auth can-i create cronjobs --namespace ws-local --as=system:serviceaccount:ws-local:ws-local
+yes
+
+$ kubectl auth can-i create jobs --namespace default --as=system:serviceaccount:ws-local:ws-local || true
+no
+
+$ kubectl auth can-i list nodes --as=system:serviceaccount:ws-local:ws-local || true
+Warning: resource 'nodes' is not namespace scoped
+
+no
+
+$ kubectl exec --namespace ws-local deploy/ws-local -c ide -- bash -c 'echo "progetto creato il $(date)" > /home/dev/NOTE.txt'
+
+$ kubectl delete pod --namespace ws-local ws-local-d6d8d6565-wwc48
+pod "ws-local-d6d8d6565-wwc48" deleted from ws-local namespace
+
+$ kubectl wait --for=condition=Ready pod --namespace ws-local -l app=ws-local --timeout=5m
+pod/ws-local-d6d8d6565-4rnr8 condition met
+
+$ kubectl get pod --namespace ws-local -l app=ws-local
+NAME                       READY   STATUS    RESTARTS   AGE
+ws-local-d6d8d6565-4rnr8   1/1     Running   0          31s
+
+$ kubectl exec --namespace ws-local deploy/ws-local -c ide -- cat /home/dev/NOTE.txt
+progetto creato il Tue Nov 24 08:26:09 UTC 2026
+
+$ kubectl scale deployment ws-local --namespace ws-local --replicas=0
+deployment.apps/ws-local scaled
+
+$ kubectl wait --for=delete pod --namespace ws-local -l app=ws-local --timeout=120s || true
+pod/ws-local-d6d8d6565-4rnr8 condition met
+
+$ kubectl get deployment,pvc --namespace ws-local
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/holding-local   1/1     1            1           2m2s
+deployment.apps/ws-local        0/0     0            0           2m2s
+
+NAME                                  STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/ws-local-home   Bound    pvc-6c7b7250-cbd5-4539-8792-ada3c4ccf3cd   5Gi        RWO            standard       <unset>                 2m2s
+
+$ kubectl scale deployment ws-local --namespace ws-local --replicas=1
+deployment.apps/ws-local scaled
+
+$ kubectl rollout status deployment/ws-local --namespace ws-local --timeout=5m
+Waiting for deployment "ws-local" rollout to finish: 0 of 1 updated replicas are available...
+deployment "ws-local" successfully rolled out
+
+$ kubectl exec curl -- curl -s -o /dev/null -m 5 -w '%{http_code}\n' http://ws-local.ws-local:6080/health || true
+200
+
+$ kubectl get pods --namespace kube-flannel -o wide | head -3
+NAME                    READY   STATUS    RESTARTS   AGE     IP             NODE                     NOMINATED NODE   READINESS GATES
+kube-flannel-ds-6w8mx   1/1     Running   0          7h23m   192.168.32.3   takeaway-control-plane   <none>           <none>
+kube-flannel-ds-7m8v5   1/1     Running   0          7h23m   192.168.32.4   takeaway-worker2         <none>           <none>
