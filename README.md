@@ -128,3 +128,11 @@ Token per Headlamp: `kubectl create token admin-user -n kube-system`
 
 Hai trovato un comando che non funziona più con una versione recente di uno strumento? Apri una
 *issue* indicando il paragrafo, il sistema operativo e l'output ottenuto.
+
+## Licenza
+
+Gli script e i manifest di questo repository sono distribuiti con licenza [MIT](LICENSE): puoi usarli,
+modificarli e ridistribuirli liberamente, anche per scopi commerciali, mantenendo la nota di copyright.
+La licenza riguarda solo i laboratori, non il testo del libro, che resta protetto da copyright.
+I progetti di terze parti installati dagli script (kind, Flannel, HAProxy, Prometheus, Headlamp,
+kube-coder e gli altri) hanno ciascuno la propria licenza.
